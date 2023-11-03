@@ -1,0 +1,5 @@
+warn: 10
+error: 5
+exeptions:
+  - repository: github.com/harmoniemand/gomodstars
+    reason: everything else sucks

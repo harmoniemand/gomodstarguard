@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-xmlfmt/xmlfmt"
 	"github.com/harmoniemand/gomodstarguard"
 	"github.com/harmoniemand/gomodstarguard/internal/filesearch"
 	"github.com/mitchellh/go-homedir"
+	"github.com/phayes/checkstyle"
 	"gopkg.in/yaml.v2"
 )
 
@@ -79,13 +81,6 @@ func Run() int {
 		logger.Fatalf("error: %s", err)
 	}
 
-	logger.Println("Warn: ", config.Warn)
-	logger.Println("Error: ", config.Error)
-
-	for _, e := range config.Exeptions {
-		logger.Println("Repo: ", e.Repository)
-	}
-
 	filteredFiles := filesearch.Find(cwd, noTest, args)
 
 	processor, err := gomodstarguard.NewProcessor(config)
@@ -103,20 +98,20 @@ func Run() int {
 	logger.Printf("info: found %d issues", len(results))
 	logger.Println()
 
-	// if report == "checkstyle" {
-	// 	err := WriteCheckstyle(reportFile, results)
-	// 	if err != nil {
-	// 		logger.Fatalf("error: %s", err)
-	// 	}
-	// }
+	if report == "checkstyle" {
+		err := WriteCheckstyle(reportFile, results)
+		if err != nil {
+			logger.Fatalf("error: %s", err)
+		}
+	}
 
-	// for _, r := range results {
-	// 	fmt.Println(r.String())
-	// }
+	for _, r := range results {
+		fmt.Println(r.String())
+	}
 
-	// if len(results) > 0 {
-	// 	return issuesExitCode
-	// }
+	if len(results) > 0 {
+		return issuesExitCode
+	}
 
 	return 0
 }
@@ -165,24 +160,24 @@ Flags:`
 }
 
 // WriteCheckstyle takes the results and writes them to a checkstyle formated file.
-// func WriteCheckstyle(checkstyleFilePath string, results []gomodstarguard.Issue) error {
-// 	check := checkstyle.New()
+func WriteCheckstyle(checkstyleFilePath string, results []gomodstarguard.Issue) error {
+	check := checkstyle.New()
 
-// 	for i := range results {
-// 		file := check.EnsureFile(results[i].FileName)
-// 		file.AddError(checkstyle.NewError(results[i].LineNumber, 1, checkstyle.SeverityError, results[i].Reason,
-// 			"gomodguard"))
-// 	}
+	for i := range results {
+		file := check.EnsureFile(results[i].FileName)
+		file.AddError(checkstyle.NewError(results[i].LineNumber, 1, checkstyle.SeverityError, results[i].Reason,
+			"gomodguard"))
+	}
 
-// 	checkstyleXML := fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n%s", check.String())
+	checkstyleXML := fmt.Sprintf("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n%s", check.String())
 
-// 	err := os.WriteFile(checkstyleFilePath, []byte(xmlfmt.FormatXML(checkstyleXML, "", "  ")), 0644) //nolint:gosec
-// 	if err != nil {
-// 		return err
-// 	}
+	err := os.WriteFile(checkstyleFilePath, []byte(xmlfmt.FormatXML(checkstyleXML, "", "  ")), 0644) //nolint:gosec
+	if err != nil {
+		return err
+	}
 
-// 	return nil
-// }
+	return nil
+}
 
 // fileExists returns true if the file path provided exists.
 func fileExists(filename string) bool {
