@@ -1,5 +1,8 @@
 # gomodstarguard
 
+** under development - do not use in prod **
+
+
 heavily inspired by [gomodguard](https://github.com/ryancurrah/gomodguard)
 
 A golang linter that checks dependencies from github for their stars and warns if they are below a certain threshold.
@@ -11,3 +14,12 @@ A golang linter that checks dependencies from github for their stars and warns i
     exeptions:
       - repository: github.com/harmoniemand/gomodstars
         reason: sadly this repo does not have that many stars yet
+
+
+## install
+
+    go install github.com/harmoniemand/gomodstarguard/cmd/gomodstarguard
+
+## usage
+
+    gomodstarguard
