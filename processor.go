@@ -4,14 +4,9 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"io"
-	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
-
-	"golang.org/x/net/html"
 )
 
 type Configuration struct {
@@ -24,12 +19,14 @@ type Configuration struct {
 }
 
 type Processor struct {
-	Config *Configuration
+	Config    *Configuration
+	Stargazer *Stargazer
 }
 
-func NewProcessor(config *Configuration) (*Processor, error) {
+func NewProcessor(config *Configuration, stargazer *Stargazer) (*Processor, error) {
 	return &Processor{
-		Config: config,
+		Config:    config,
+		Stargazer: stargazer,
 	}, nil
 }
 
@@ -63,7 +60,7 @@ func (p *Processor) process(filename string, data []byte) (issues []Issue) {
 			Reason:     fmt.Sprintf("invalid syntax, file cannot be linted (%s)", err.Error()),
 		})
 
-		return
+		return issues
 	}
 
 	imports := file.Imports
@@ -78,42 +75,26 @@ func (p *Processor) process(filename string, data []byte) (issues []Issue) {
 			repoBaseURL := match[0]
 
 			url := "https://" + repoBaseURL
-			res, err := http.Get(url) //nolint:gosec
+			stars, err := p.Stargazer.GetStars(url)
 
 			if err != nil {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), "unable to load stars - cannot get URL"))
+				issues = append(issues, p.addError(fileSet, imports[n].Pos(), err.Error()))
 				continue
 			}
 
-			content, err := io.ReadAll(res.Body)
-			if err != nil {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), "unable to load stars - cannot read response body"))
-				continue
-			}
-
-			err = res.Body.Close()
-			if err != nil {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), "unable to load stars - cannot close response body"))
-				continue
-			}
-
-			doc, err := html.Parse(strings.NewReader(string(content)))
-			if err != nil {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), "unable to load stars - cannot parse HTML"))
-				continue
-			}
-
-			starsElement := p.getElementByID(doc, "repo-stars-counter-star")
-			stars := p.parseStarNumber(starsElement.FirstChild.Data)
 			// logger.Println("stars: ", stars)
 
 			if stars < p.Config.Error {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), fmt.Sprintf("github stars of %s is less than the error threshold (%d)", importedPkg, p.Config.Error)))
+				reason := fmt.Sprintf("github stars of %s is less than the error threshold (%d)", importedPkg, p.Config.Error)
+				issues = append(issues, p.addError(fileSet, imports[n].Pos(), reason))
+
 				continue
 			}
 
 			if stars < p.Config.Warn {
-				issues = append(issues, p.addError(fileSet, imports[n].Pos(), fmt.Sprintf("github stars of %s is less than the warn threshold (%d)", importedPkg, p.Config.Warn)))
+				reason := fmt.Sprintf("github stars of %s is less than the warn threshold (%d)", importedPkg, p.Config.Warn)
+				issues = append(issues, p.addError(fileSet, imports[n].Pos(), reason))
+
 				continue
 			}
 		}
@@ -133,63 +114,6 @@ func (p *Processor) addError(fileset *token.FileSet, pos token.Pos, reason strin
 	}
 }
 
-func (p *Processor) parseStarNumber(stars string) int {
-	var multiplier float64 = 1
-
-	if stars[len(stars)-1:] == "k" {
-		multiplier = 1000
-	}
-
-	s := strings.ReplaceAll(stars, "k", "")
-
-	starsFloat, err := strconv.ParseFloat(s, 32)
-	if err != nil {
-		return 0
-	}
-
-	return int(starsFloat * multiplier)
-}
-
 func (p *Processor) isValidURL(input string) bool {
 	return strings.HasPrefix(input, "github.com")
-}
-
-func (p *Processor) GetAttribute(n *html.Node, key string) (string, bool) {
-	for _, attr := range n.Attr {
-		if attr.Key == key {
-			return attr.Val, true
-		}
-	}
-
-	return "", false
-}
-
-func (p *Processor) checkID(n *html.Node, id string) bool {
-	if n.Type == html.ElementNode {
-		s, ok := p.GetAttribute(n, "id")
-		if ok && s == id {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (p *Processor) traverse(n *html.Node, id string) *html.Node {
-	if p.checkID(n, id) {
-		return n
-	}
-
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		result := p.traverse(c, id)
-		if result != nil {
-			return result
-		}
-	}
-
-	return nil
-}
-
-func (p *Processor) getElementByID(n *html.Node, id string) *html.Node {
-	return p.traverse(n, id)
 }

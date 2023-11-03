@@ -23,3 +23,10 @@ A golang linter that checks dependencies from github for their stars and warns i
 ## usage
 
     gomodstarguard
+
+## RoadMap
+
+- [ ] add tests
+- [ ] add CI
+- [ ] use github api to get stars
+- [ ] check if url redirects to github and also check this repos

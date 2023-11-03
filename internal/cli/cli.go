@@ -83,18 +83,12 @@ func Run() int {
 
 	filteredFiles := filesearch.Find(cwd, noTest, args)
 
-	processor, err := gomodstarguard.NewProcessor(config)
-	if err != nil {
-		logger.Fatalf("error: %s", err)
-	}
+	results := runProcessor(config, filteredFiles)
 
-	// logger.Printf("info: allowed modules, %+v", config.Allowed.Modules)
-	// logger.Printf("info: allowed module domains, %+v", config.Allowed.Domains)
-	// logger.Printf("info: blocked modules, %+v", config.Blocked.Modules.Get())
-	// logger.Printf("info: blocked modules with version constraints, %+v", config.Blocked.Versions.Get())
+	return reportIssues(results, report, reportFile, issuesExitCode)
+}
 
-	results := processor.ProcessFiles(filteredFiles)
-
+func reportIssues(results []gomodstarguard.Issue, report string, reportFile string, issuesExitCode int) int {
 	logger.Printf("info: found %d issues", len(results))
 	logger.Println()
 
@@ -114,6 +108,22 @@ func Run() int {
 	}
 
 	return 0
+}
+
+func runProcessor(config *gomodstarguard.Configuration, filteredFiles []string) []gomodstarguard.Issue {
+	stargazer, err := gomodstarguard.NewStargazer(config)
+	if err != nil {
+		logger.Fatalf("error: %s", err)
+	}
+
+	processor, err := gomodstarguard.NewProcessor(config, stargazer)
+	if err != nil {
+		logger.Fatalf("error: %s", err)
+	}
+
+	results := processor.ProcessFiles(filteredFiles)
+
+	return results
 }
 
 // GetConfig from YAML file.
